@@ -23,6 +23,7 @@ configurable string PASSWORD = ?;
 configurable string HOST = ?;
 configurable int PORT = ?;
 configurable string DATABASE = ?;
+configurable string SCHEMA = ?;
 
 public type TableDefinition record {
     *sql:TableDefinition;
@@ -33,6 +34,7 @@ public type TableDefinition record {
 isolated client class SchemaClient {
     private final postgresql:Client dbClient;        //DELETE POSTGRESQL
     private final string database;
+    private final string schema;
 
     # Initializes the SchemaClient object
     #
@@ -40,14 +42,16 @@ isolated client class SchemaClient {
     # + user - The username to access the database
     # + password - The password to access the database
     # + database - The name of the database to be accessed
+    # + schema - The schema which contains the tables and rountines
     # + port - The port the database will be accessed on
     # + options - PostgresSql database options
     # + connectionPool - The `sql:ConnectionPool` to be used for the connection. If there is no
     #                    `connectionPool` provided, the global connection pool (shared by all clients) will be used                  
     # + return - An `sql:Error` or `()`
-    public function init(string host, string user, string password, string database, int port, 
+    public function init(string host, string user, string password, string database, string schema, int port, 
             postgresql:Options? options = (), sql:ConnectionPool? connectionPool = ()) returns sql:Error? {          //remove postgresql
         self.database = database;
+        self.schema =  schema;
         self.dbClient = check new (host, user, password, database, port, options, connectionPool);
     }
 
@@ -58,14 +62,14 @@ isolated client class SchemaClient {
         string[] tables = [];
         stream<record {}, sql:Error?> results = self.dbClient->query(
             `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
-             WHERE TABLE_SCHEMA = ${self.database};`
+            WHERE TABLE_SCHEMA = ${self.schema};`
         );
 
         do {
             tables = check from record {} result in results
-                select <string>result["TABLE_NAME"];
+                select <string>result["table_name"];
         } on fail error e {
-            return error sql:Error(string `Error while listing the tables in the ${self.database} database.`, cause = e);
+            return error sql:Error(string `Error while listing the tables in the ${self.schema} database.`, cause = e);
         }
 
         check results.close();
@@ -86,7 +90,7 @@ isolated client class SchemaClient {
     isolated remote function getTableInfo(string tableName, sql:ColumnRetrievalOptions include = sql:COLUMNS_ONLY) returns TableDefinition|sql:Error {
         record {}|sql:Error 'table = self.dbClient->queryRow(
             `SELECT TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES 
-             WHERE (TABLE_SCHEMA=${self.database} AND TABLE_NAME = ${tableName});`
+             WHERE (TABLE_SCHEMA=${self.schema} AND TABLE_NAME = ${tableName});`
         );
 
         if 'table is sql:NoRowsError {
@@ -96,7 +100,7 @@ isolated client class SchemaClient {
         } else {
             TableDefinition tableDef = {
                 name: tableName,
-                'type: <sql:TableType>'table["TABLE_TYPE"]
+                'type: <sql:TableType>'table["table_type"]
             };
 
             if !(include == sql:NO_COLUMNS) {
@@ -126,14 +130,14 @@ isolated client class SchemaClient {
         string[] routines = [];
         stream<record {}, sql:Error?> results = self.dbClient->query(
             `SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
-            WHERE ROUTINE_SCHEMA = ${self.database};`
+            WHERE ROUTINE_SCHEMA = ${self.schema};`
         );
 
         do {
             routines = check from record {} result in results
-                select <string>result["ROUTINE_NAME"];
+                select <string>result["routine_name"];
         } on fail error e {
-            return error(string `Error while listing routines in the ${self.database} database.`, cause = e);
+            return error(string `Error while listing routines in the ${self.schema} database.`, cause = e);
         }
 
         check results.close();
@@ -156,6 +160,7 @@ isolated client class SchemaClient {
         } else if routine is sql:Error {
             return routine;
         } else {
+
             sql:RoutineDefinition|sql:Error routineError = self.getParameters(name, routine);
 
             if routineError is sql:RoutineDefinition {
@@ -175,21 +180,21 @@ isolated client class SchemaClient {
         sql:ColumnDefinition[] columns = [];
         stream<record {}, sql:Error?> colResults = self.dbClient->query(
             `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_DEFAULT, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE (TABLE_SCHEMA=${self.database} AND TABLE_NAME = ${tableName});`
+                WHERE (TABLE_SCHEMA=${self.schema} AND TABLE_NAME = ${tableName});`
         );
         do {
             check from record {} result in colResults
                 do {
                     sql:ColumnDefinition column = {
-                        name: <string>result["COLUMN_NAME"],
-                        'type: <string>result["DATA_TYPE"],
-                        defaultValue: result["COLUMN_DEFAULT"],
-                        nullable: (<string>result["IS_NULLABLE"]) == "YES" ? true : false
+                        name: <string>result["column_name"],
+                        'type: <string>result["data_type"],
+                        defaultValue: result["column_default"],
+                        nullable: (<string>result["is_nullable"]) == "YES" ? true : false
                     };
                     columns.push(column);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading column info in the ${tableName} table, in the ${self.database} database.`, cause = e);
+            return error sql:Error(string `Error while reading column info in the ${tableName} table, in the ${self.schema} database.`, cause = e);
         }
 
         check colResults.close();
@@ -212,19 +217,19 @@ isolated client class SchemaClient {
             FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS AS CC 
             JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS TC 
             ON CC.CONSTRAINT_SCHEMA = TC.CONSTRAINT_SCHEMA 
-            WHERE CC.CONSTRAINT_SCHEMA=${self.database} AND TC.TABLE_NAME=${tableName};`
+            WHERE CC.CONSTRAINT_SCHEMA=${self.schema} AND TC.TABLE_NAME=${tableName};`
         );
         do {
             check from record {} result in checkResults
                 do {
                     sql:CheckConstraint 'check = {
-                        name: <string>result["CONSTRAINT_NAME"],
-                        clause: <string>result["CHECK_CLAUSE"]
+                        name: <string>result["constraint_name"],
+                        clause: <string>result["check_clause"]
                     };
                     checkConstList.push('check);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading check constraints in the ${self.database} database.`, cause = e);
+            return error sql:Error(string `Error while reading check constraints in the ${self.schema} database.`, cause = e);
         }
 
         check checkResults.close();        
@@ -240,27 +245,27 @@ isolated client class SchemaClient {
             ON KCU.CONSTRAINT_CATALOG = RC.CONSTRAINT_CATALOG 
             AND KCU.CONSTRAINT_SCHEMA = RC.CONSTRAINT_SCHEMA
             AND KCU.CONSTRAINT_NAME = RC.CONSTRAINT_NAME
-            WHERE (RC.CONSTRAINT_SCHEMA=${self.database} AND KCU.TABLE_NAME = ${tableName});`
+            WHERE (RC.CONSTRAINT_SCHEMA=${self.schema} AND KCU.TABLE_NAME = ${tableName});`
         );
         do {
             check from record {} result in refResults
                 do {
                     sql:ReferentialConstraint ref = {
-                        name: <string>result["CONSTRAINT_NAME"],
-                        tableName: <string>result["TABLE_NAME"],
-                        columnName: <string>result["COLUMN_NAME"],
-                        updateRule: <sql:ReferentialRule>result["UPDATE_RULE"],
-                        deleteRule: <sql:ReferentialRule>result["DELETE_RULE"]
+                        name: <string>result["constraint_name"],
+                        tableName: <string>result["table_name"],
+                        columnName: <string>result["column_name"],
+                        updateRule: <sql:ReferentialRule>result["update_rule"],
+                        deleteRule: <sql:ReferentialRule>result["delete_rule"]
                     };
 
-                    string colName = <string>result["COLUMN_NAME"];
+                    string colName = <string>result["column_name"];
                     if refConstMap[colName] is () {
                         refConstMap[colName] = [];
                     }
                     refConstMap.get(colName).push(ref);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading referential constraints in the ${tableName} table, in the ${self.database} database.`, cause = e);
+            return error sql:Error(string `Error while reading referential constraints in the ${tableName} table, in the ${self.schema} database.`, cause = e);
         }
 
         _ = checkpanic from sql:ColumnDefinition col in <sql:ColumnDefinition[]>tableDef.columns
@@ -289,28 +294,28 @@ isolated client class SchemaClient {
             FROM INFORMATION_SCHEMA.PARAMETERS AS P
             JOIN INFORMATION_SCHEMA.ROUTINES AS R
             ON P.SPECIFIC_NAME = R.SPECIFIC_NAME
-            WHERE (P.SPECIFIC_SCHEMA = ${self.database} AND R.ROUTINE_NAME = ${name});`
+            WHERE (P.SPECIFIC_SCHEMA = ${self.schema} AND R.ROUTINE_NAME = ${name});`
         );
         do {
             check from sql:ParameterDefinition parameters in paramResults
                 do {
                     sql:ParameterDefinition 'parameter = {
-                        mode: <sql:ParameterMode>parameters["PARAMETER_MODE"],
-                        name: <string>parameters["PARAMETER_NAME"],
-                        'type: <string>parameters["DATA_TYPE"]
+                        mode: <sql:ParameterMode>parameters["parameter_mode"],
+                        name: <string>parameters["parameter_name"],
+                        'type: <string>parameters["data_type"]
                     };
                     parameterList.push('parameter);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading parameters in the ${name} routine, in the ${self.database} database.`, cause = e);
+            return error sql:Error(string `Error while reading parameters in the ${name} routine, in the ${self.schema} database.`, cause = e);
         }
 
         check paramResults.close();
 
         sql:RoutineDefinition routineDef = {
             name: name,
-            'type: <sql:RoutineType>routine["ROUTINE_TYPE"],
-            returnType: <string>routine["DATA_TYPE"],
+            'type: <sql:RoutineType>routine["routine_type"],
+            returnType: <string?>routine["data_type"],
             parameters: parameterList
         };
 
@@ -327,26 +332,26 @@ isolated client class SchemaClient {
 }
 
 public function main() returns sql:Error?|error {                                                                         //DELETE ALL OF MAIN
-    SchemaClient client1 = check new (HOST, USER, PASSWORD, DATABASE, PORT, (), ());
+    SchemaClient client1 = check new (HOST, USER, PASSWORD, DATABASE, SCHEMA, PORT, (), ());
 
-    string[]|error tableNames = client1->listTables();
-    io:println("Table Names:\n");
-    io:println(tableNames);
-    io:println("");
+    // string[]|error tableNames = client1->listTables();
+    // io:println("Table Names:\n");
+    // io:println(tableNames);
+    // io:println("");
 
-    TableDefinition|sql:Error tableDef = client1->getTableInfo("EMPLOYEES", include = sql:COLUMNS_WITH_CONSTRAINTS);
+    TableDefinition|sql:Error tableDef = client1->getTableInfo("employees", include = sql:COLUMNS_ONLY);
     io:println("Table Definition:\n");
     io:println(tableDef);
     io:println("");
 
-    string[]|error routineNames = client1->listRoutines();
-    io:println("Routine Names:\n");
-    io:println(routineNames);
-    io:println("");
+    // string[]|error routineNames = client1->listRoutines();
+    // io:println("Routine Names:\n");
+    // io:println(routineNames);
+    // io:println("");
 
-    sql:RoutineDefinition|sql:Error routineDef = client1->getRoutineInfo("getEmpsName");
-    io:println("Routine Definition:\n");
-    io:println(routineDef);
+    // sql:RoutineDefinition|sql:Error routineDef = client1->getRoutineInfo("getempsname");
+    // io:println("Routine Definition:\n");
+    // io:println(routineDef);
 
-    check client1.close();
+    // check client1.close();
 }
