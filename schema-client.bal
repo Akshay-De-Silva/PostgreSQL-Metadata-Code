@@ -334,24 +334,24 @@ isolated client class SchemaClient {
 public function main() returns sql:Error?|error {                                                                         //DELETE ALL OF MAIN
     SchemaClient client1 = check new (HOST, USER, PASSWORD, DATABASE, SCHEMA, PORT, (), ());
 
-    // string[]|error tableNames = client1->listTables();
-    // io:println("Table Names:\n");
-    // io:println(tableNames);
-    // io:println("");
+    string[]|error tableNames = client1->listTables();
+    io:println("Table Names:\n");
+    io:println(tableNames);
+    io:println("");
 
-    TableDefinition|sql:Error tableDef = client1->getTableInfo("employees", include = sql:COLUMNS_ONLY);
+    TableDefinition|sql:Error tableDef = client1->getTableInfo("employees", include = sql:COLUMNS_WITH_CONSTRAINTS);
     io:println("Table Definition:\n");
     io:println(tableDef);
     io:println("");
 
-    // string[]|error routineNames = client1->listRoutines();
-    // io:println("Routine Names:\n");
-    // io:println(routineNames);
-    // io:println("");
+    string[]|error routineNames = client1->listRoutines();
+    io:println("Routine Names:\n");
+    io:println(routineNames);
+    io:println("");
 
-    // sql:RoutineDefinition|sql:Error routineDef = client1->getRoutineInfo("getempsname");
-    // io:println("Routine Definition:\n");
-    // io:println(routineDef);
+    sql:RoutineDefinition|sql:Error routineDef = client1->getRoutineInfo("getempsname");
+    io:println("Routine Definition:\n");
+    io:println(routineDef);
 
-    // check client1.close();
+    check client1.close();
 }

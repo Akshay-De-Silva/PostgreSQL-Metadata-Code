@@ -58,35 +58,39 @@ function testGetTableInfoColumnsOnly() returns error? {
     test:assertEquals('table.'type, "BASE TABLE");
 
     string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
-    boolean columnCheck = tableCol.includes("employeenumber") && tableCol.includes("lastname") && 
+    boolean colCheck = tableCol.includes("employeenumber") && tableCol.includes("lastname") && 
                          tableCol.includes("firstname") && tableCol.includes("extension") && 
                          tableCol.includes("email") && tableCol.includes("officecode") && 
                          tableCol.includes("reportsto") && tableCol.includes("jobtitle");
 
-    test:assertEquals(columnCheck, true);
+    test:assertEquals(colCheck, true);
 }
 
-// @test:Config {
-//     groups: ["metadata"]
-// }
-// function testGetTableInfoColumnsWithConstraints() returns error? {
-//     SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
-//     TableDefinition 'table = check client1->getTableInfo("EMPLOYEES", include = sql:COLUMNS_WITH_CONSTRAINTS);
-//     check client1.close();
+@test:Config {
+    groups: ["metadata"]
+}
+function testGetTableInfoColumnsWithConstraints() returns error? {
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    TableDefinition 'table = check client1->getTableInfo("employees", include = sql:COLUMNS_WITH_CONSTRAINTS);
+    check client1.close();
 
-//     test:assertEquals('table.name, "EMPLOYEES");
-//     test:assertEquals('table.'type, "BASE TABLE");
-//     test:assertEquals('table.checkConstraints, [{"name": "CHK_EmpNums","clause": "((`EMPLOYEENUMBER` > 0) and (`REPORTSTO` > 0))"}]);
+    test:assertEquals('table.name, "employees");
+    test:assertEquals('table.'type, "BASE TABLE");
 
-//     string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
-//     boolean columnCheck = tableCol.includes("EMPLOYEENUMBER") && tableCol.includes("LASTNAME") && 
-//                          tableCol.includes("FIRSTNAME") && tableCol.includes("EXTENSION") && 
-//                          tableCol.includes("EMAIL") && tableCol.includes("OFFICECODE") && 
-//                          tableCol.includes("REPORTSTO") && tableCol.includes("JOBTITLE") && 
-//                          tableCol.includes("FK_EmployeesOffice") && tableCol.includes("FK_EmployeesManager");
+    string tableCheckConst = (<sql:CheckConstraint[]>'table.checkConstraints).toString();
+    boolean checkConstCheck = tableCheckConst.includes("chk_empnums");
 
-//     test:assertEquals(columnCheck, true);
-// }
+    test:assertEquals(checkConstCheck, true);
+
+    string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
+    boolean colCheck = tableCol.includes("employeenumber") && tableCol.includes("lastname") && 
+                         tableCol.includes("firstname") && tableCol.includes("extension") && 
+                         tableCol.includes("email") && tableCol.includes("officecode") && 
+                         tableCol.includes("reportsto") && tableCol.includes("jobtitle") && 
+                         tableCol.includes("fk_employeesoffice") && tableCol.includes("fk_employeesmanager");
+
+    test:assertEquals(colCheck, true);
+}
 
 @test:Config {
     groups: ["metadata"]
