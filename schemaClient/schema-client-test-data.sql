@@ -1,8 +1,8 @@
-DROP SCHEMA IF EXISTS metadataDB;
-CREATE SCHEMA metadataDB;
-DROP SCHEMA IF EXISTS metadataEmptyDB;
-CREATE SCHEMA metadataEmptyDB;
-SET search_path TO metadataDB;
+DROP SCHEMA IF EXISTS metadatadb;
+CREATE SCHEMA metadatadb;
+DROP SCHEMA IF EXISTS metadataemptydb;
+CREATE SCHEMA metadataemptydb;
+SET search_path TO metadatadb;
 
 DROP TABLE IF EXISTS OFFICES;
 CREATE TABLE OFFICES (

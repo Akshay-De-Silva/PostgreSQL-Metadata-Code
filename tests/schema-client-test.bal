@@ -21,17 +21,17 @@ import ballerina/sql;
     groups: ["metadata"]
 }
 function testListTables() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());          //chaned in the main repo version
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());          //chaned in the main repo version
     string[] tableList = check client1->listTables();
     check client1.close();
-    test:assertEquals(tableList, ["EMPLOYEES", "OFFICES"]);
+    test:assertEquals(tableList, ["employees", "offices"]);
 }
 
 @test:Config {
     groups: ["metadata"]
 }
 function testListTablesNegative() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataEmptyDB", 5432, (), ());
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataemptydb", 5432, (), ());
     string[] tableList = check client1->listTables();
     check client1.close();
     test:assertEquals(tableList, []);
@@ -41,59 +41,59 @@ function testListTablesNegative() returns error? {
     groups: ["metadata"]
 }
 function testGetTableInfoNoColumns() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    TableDefinition 'table = check client1->getTableInfo("EMPLOYEES", include = sql:NO_COLUMNS);
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    TableDefinition 'table = check client1->getTableInfo("employees", include = sql:NO_COLUMNS);
     check client1.close();
-    test:assertEquals('table, {"name": "EMPLOYEES", "type": "BASE TABLE"});
+    test:assertEquals('table, {"name": "employees", "type": "BASE TABLE"});
 }
 
 @test:Config {
     groups: ["metadata"]
 }
 function testGetTableInfoColumnsOnly() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    TableDefinition 'table = check client1->getTableInfo("EMPLOYEES", include = sql:COLUMNS_ONLY);
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    TableDefinition 'table = check client1->getTableInfo("employees", include = sql:COLUMNS_ONLY);
     check client1.close();
-    test:assertEquals('table.name, "EMPLOYEES");
+    test:assertEquals('table.name, "employees");
     test:assertEquals('table.'type, "BASE TABLE");
 
     string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
-    boolean columnCheck = tableCol.includes("EMPLOYEENUMBER") && tableCol.includes("LASTNAME") && 
-                         tableCol.includes("FIRSTNAME") && tableCol.includes("EXTENSION") && 
-                         tableCol.includes("EMAIL") && tableCol.includes("OFFICECODE") && 
-                         tableCol.includes("REPORTSTO") && tableCol.includes("JOBTITLE");
+    boolean columnCheck = tableCol.includes("employeenumber") && tableCol.includes("lastname") && 
+                         tableCol.includes("firstname") && tableCol.includes("extension") && 
+                         tableCol.includes("email") && tableCol.includes("officecode") && 
+                         tableCol.includes("reportsto") && tableCol.includes("jobtitle");
 
     test:assertEquals(columnCheck, true);
 }
 
-@test:Config {
-    groups: ["metadata"]
-}
-function testGetTableInfoColumnsWithConstraints() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    TableDefinition 'table = check client1->getTableInfo("EMPLOYEES", include = sql:COLUMNS_WITH_CONSTRAINTS);
-    check client1.close();
+// @test:Config {
+//     groups: ["metadata"]
+// }
+// function testGetTableInfoColumnsWithConstraints() returns error? {
+//     SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+//     TableDefinition 'table = check client1->getTableInfo("EMPLOYEES", include = sql:COLUMNS_WITH_CONSTRAINTS);
+//     check client1.close();
 
-    test:assertEquals('table.name, "EMPLOYEES");
-    test:assertEquals('table.'type, "BASE TABLE");
-    test:assertEquals('table.checkConstraints, [{"name": "CHK_EmpNums","clause": "((`EMPLOYEENUMBER` > 0) and (`REPORTSTO` > 0))"}]);
+//     test:assertEquals('table.name, "EMPLOYEES");
+//     test:assertEquals('table.'type, "BASE TABLE");
+//     test:assertEquals('table.checkConstraints, [{"name": "CHK_EmpNums","clause": "((`EMPLOYEENUMBER` > 0) and (`REPORTSTO` > 0))"}]);
 
-    string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
-    boolean columnCheck = tableCol.includes("EMPLOYEENUMBER") && tableCol.includes("LASTNAME") && 
-                         tableCol.includes("FIRSTNAME") && tableCol.includes("EXTENSION") && 
-                         tableCol.includes("EMAIL") && tableCol.includes("OFFICECODE") && 
-                         tableCol.includes("REPORTSTO") && tableCol.includes("JOBTITLE") && 
-                         tableCol.includes("FK_EmployeesOffice") && tableCol.includes("FK_EmployeesManager");
+//     string tableCol = (<sql:ColumnDefinition[]>'table.columns).toString();
+//     boolean columnCheck = tableCol.includes("EMPLOYEENUMBER") && tableCol.includes("LASTNAME") && 
+//                          tableCol.includes("FIRSTNAME") && tableCol.includes("EXTENSION") && 
+//                          tableCol.includes("EMAIL") && tableCol.includes("OFFICECODE") && 
+//                          tableCol.includes("REPORTSTO") && tableCol.includes("JOBTITLE") && 
+//                          tableCol.includes("FK_EmployeesOffice") && tableCol.includes("FK_EmployeesManager");
 
-    test:assertEquals(columnCheck, true);
-}
+//     test:assertEquals(columnCheck, true);
+// }
 
 @test:Config {
     groups: ["metadata"]
 }
 function testGetTableInfoNegative() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    TableDefinition|sql:Error 'table = client1->getTableInfo("EMPLOYEE", include = sql:NO_COLUMNS);
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    TableDefinition|sql:Error 'table = client1->getTableInfo("employee", include = sql:NO_COLUMNS);
     check client1.close();
     if 'table is sql:Error {
         test:assertEquals('table.message(), "The selected table does not exist or the user does not have the required privilege level to view the table.");
@@ -106,7 +106,7 @@ function testGetTableInfoNegative() returns error? {
     groups: ["metadata"]
 }
 function testListRoutines() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
     string[] routineList = check client1->listRoutines();
     check client1.close();
     test:assertEquals(routineList, ["getempsname", "getempsemail"]);
@@ -116,7 +116,7 @@ function testListRoutines() returns error? {
     groups: ["metadata"]
 }
 function testListRoutinesNegative() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataEmptyDB", 5432, (), ());
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataemptydb", 5432, (), ());
     string[] routineList = check client1->listRoutines();
     check client1.close();
     test:assertEquals(routineList, []);
@@ -126,14 +126,14 @@ function testListRoutinesNegative() returns error? {
     groups: ["metadata"]
 }
 function testGetRoutineInfo() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    sql:RoutineDefinition routine = check client1->getRoutineInfo("getEmpsName");
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    sql:RoutineDefinition routine = check client1->getRoutineInfo("getempsname");
     check client1.close();
-    test:assertEquals(routine.name, "getEmpsName");
+    test:assertEquals(routine.name, "getempsname");
     test:assertEquals(routine.'type, "PROCEDURE");
 
     string routineParams = (<sql:ParameterDefinition[]>routine.parameters).toString();
-    boolean paramCheck = routineParams.includes("EMPNUMBER") && routineParams.includes("FNAME");
+    boolean paramCheck = routineParams.includes("empnumber") && routineParams.includes("fname");
     test:assertEquals(paramCheck, true);
 }
 
@@ -141,8 +141,8 @@ function testGetRoutineInfo() returns error? {
     groups: ["metadata"]
 }
 function testGetRoutineInfoNegative() returns error? {
-    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadataDB", 5432, (), ());
-    sql:RoutineDefinition|sql:Error routine = client1->getRoutineInfo("getEmpsNames");
+    SchemaClient client1 = check new("localhost", "postgres", "password", "postgres", "metadatadb", 5432, (), ());
+    sql:RoutineDefinition|sql:Error routine = client1->getRoutineInfo("getempsnames");
     check client1.close();
     if routine is sql:Error {
         test:assertEquals(routine.message(), "Selected routine does not exist in the database, or the user does not have required privilege level to view it.");
