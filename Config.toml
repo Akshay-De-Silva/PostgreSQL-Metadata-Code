@@ -3,4 +3,3 @@ PASSWORD="password"
 HOST="localhost"
 PORT=5432
 DATABASE="postgres"
-SCHEMA="metadatadb"

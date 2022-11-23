@@ -1,7 +1,11 @@
+DROP DATABASE IF EXISTS metadatadatabaseempty;
+CREATE DATABASE metadatadatabaseempty;
+DROP DATABASE IF EXISTS metadatadatabase;
+CREATE DATABASE metadatadatabase;
+SET search_path TO metadatadatabase;
+
 DROP SCHEMA IF EXISTS metadatadb;
 CREATE SCHEMA metadatadb;
-DROP SCHEMA IF EXISTS metadataemptydb;
-CREATE SCHEMA metadataemptydb;
 SET search_path TO metadatadb;
 
 DROP TABLE IF EXISTS OFFICES;

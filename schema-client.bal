@@ -23,7 +23,6 @@ configurable string PASSWORD = ?;
 configurable string HOST = ?;
 configurable int PORT = ?;
 configurable string DATABASE = ?;
-configurable string SCHEMA = ?;
 
 public type TableDefinition record {
     *sql:TableDefinition;
@@ -34,7 +33,6 @@ public type TableDefinition record {
 isolated client class SchemaClient {
     private final postgresql:Client dbClient;        //DELETE POSTGRESQL
     private final string database;
-    private final string schema;
 
     # Initializes the SchemaClient object
     #
@@ -42,16 +40,14 @@ isolated client class SchemaClient {
     # + user - The username to access the database
     # + password - The password to access the database
     # + database - The name of the database to be accessed
-    # + schema - The schema which contains the tables and rountines
     # + port - The port the database will be accessed on
     # + options - PostgresSql database options
     # + connectionPool - The `sql:ConnectionPool` to be used for the connection. If there is no
     #                    `connectionPool` provided, the global connection pool (shared by all clients) will be used                  
     # + return - An `sql:Error` or `()`
-    public function init(string host, string user, string password, string database, string schema, int port, 
+    public function init(string host, string user, string password, string database, int port, 
             postgresql:Options? options = (), sql:ConnectionPool? connectionPool = ()) returns sql:Error? {          //remove postgresql
-        self.database = database;
-        self.schema =  schema;
+        self.database =  database;
         self.dbClient = check new (host, user, password, database, port, options, connectionPool);
     }
 
@@ -62,14 +58,14 @@ isolated client class SchemaClient {
         string[] tables = [];
         stream<record {}, sql:Error?> results = self.dbClient->query(
             `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = ${self.schema};`
+            WHERE TABLE_CATALOG = ${self.database} AND TABLE_SCHEMA NOT IN ('pg_catalog', 'information_schema');`
         );
 
         do {
             tables = check from record {} result in results
                 select <string>result["table_name"];
         } on fail error e {
-            return error sql:Error(string `Error while listing the tables in the ${self.schema} database.`, cause = e);
+            return error sql:Error(string `Error while listing the tables in the ${self.database} database.`, cause = e);
         }
 
         check results.close();
@@ -90,7 +86,7 @@ isolated client class SchemaClient {
     isolated remote function getTableInfo(string tableName, sql:ColumnRetrievalOptions include = sql:COLUMNS_ONLY) returns TableDefinition|sql:Error {
         record {}|sql:Error 'table = self.dbClient->queryRow(
             `SELECT TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES 
-             WHERE (TABLE_SCHEMA=${self.schema} AND TABLE_NAME = ${tableName});`
+             WHERE (TABLE_CATALOG=${self.database} AND TABLE_NAME = ${tableName});`
         );
 
         if 'table is sql:NoRowsError {
@@ -130,14 +126,14 @@ isolated client class SchemaClient {
         string[] routines = [];
         stream<record {}, sql:Error?> results = self.dbClient->query(
             `SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
-            WHERE ROUTINE_SCHEMA = ${self.schema};`
+            WHERE ROUTINE_CATALOG = ${self.database} AND ROUTINE_SCHEMA NOT IN ('pg_catalog', 'information_schema');`
         );
 
         do {
             routines = check from record {} result in results
                 select <string>result["routine_name"];
         } on fail error e {
-            return error(string `Error while listing routines in the ${self.schema} database.`, cause = e);
+            return error(string `Error while listing routines in the ${self.database} database.`, cause = e);
         }
 
         check results.close();
@@ -180,7 +176,7 @@ isolated client class SchemaClient {
         sql:ColumnDefinition[] columns = [];
         stream<record {}, sql:Error?> colResults = self.dbClient->query(
             `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_DEFAULT, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE (TABLE_SCHEMA=${self.schema} AND TABLE_NAME = ${tableName});`
+                WHERE (TABLE_CATALOG=${self.database} AND TABLE_NAME = ${tableName});`
         );
         do {
             check from record {} result in colResults
@@ -194,7 +190,7 @@ isolated client class SchemaClient {
                     columns.push(column);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading column info in the ${tableName} table, in the ${self.schema} database.`, cause = e);
+            return error sql:Error(string `Error while reading column info in the ${tableName} table, in the ${self.database} database.`, cause = e);
         }
 
         check colResults.close();
@@ -216,8 +212,8 @@ isolated client class SchemaClient {
             `SELECT DISTINCT CC.CONSTRAINT_NAME, CC.CHECK_CLAUSE 
             FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS AS CC 
             JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS TC 
-            ON CC.CONSTRAINT_SCHEMA = TC.CONSTRAINT_SCHEMA 
-            WHERE CC.CONSTRAINT_SCHEMA=${self.schema} AND TC.TABLE_NAME=${tableName};`
+            ON CC.CONSTRAINT_NAME = TC.CONSTRAINT_NAME
+            WHERE TC.TABLE_NAME=${tableName};`
         );
         do {
             check from record {} result in checkResults
@@ -229,7 +225,7 @@ isolated client class SchemaClient {
                     checkConstList.push('check);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading check constraints in the ${self.schema} database.`, cause = e);
+            return error sql:Error(string `Error while reading check constraints in the ${self.database} database.`, cause = e);
         }
 
         check checkResults.close();        
@@ -243,9 +239,9 @@ isolated client class SchemaClient {
             FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC 
             JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE as KCU
             ON KCU.CONSTRAINT_CATALOG = RC.CONSTRAINT_CATALOG 
-            AND KCU.CONSTRAINT_SCHEMA = RC.CONSTRAINT_SCHEMA
+            AND KCU.CONSTRAINT_CATALOG = RC.CONSTRAINT_CATALOG
             AND KCU.CONSTRAINT_NAME = RC.CONSTRAINT_NAME
-            WHERE (RC.CONSTRAINT_SCHEMA=${self.schema} AND KCU.TABLE_NAME = ${tableName});`
+            WHERE (RC.CONSTRAINT_CATALOG=${self.database} AND KCU.TABLE_NAME = ${tableName});`
         );
         do {
             check from record {} result in refResults
@@ -265,7 +261,7 @@ isolated client class SchemaClient {
                     refConstMap.get(colName).push(ref);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading referential constraints in the ${tableName} table, in the ${self.schema} database.`, cause = e);
+            return error sql:Error(string `Error while reading referential constraints in the ${tableName} table, in the ${self.database} database.`, cause = e);
         }
 
         _ = checkpanic from sql:ColumnDefinition col in <sql:ColumnDefinition[]>tableDef.columns
@@ -294,7 +290,7 @@ isolated client class SchemaClient {
             FROM INFORMATION_SCHEMA.PARAMETERS AS P
             JOIN INFORMATION_SCHEMA.ROUTINES AS R
             ON P.SPECIFIC_NAME = R.SPECIFIC_NAME
-            WHERE (P.SPECIFIC_SCHEMA = ${self.schema} AND R.ROUTINE_NAME = ${name});`
+            WHERE R.ROUTINE_NAME = ${name};`
         );
         do {
             check from sql:ParameterDefinition parameters in paramResults
@@ -307,7 +303,7 @@ isolated client class SchemaClient {
                     parameterList.push('parameter);
                 };
         } on fail error e {
-            return error sql:Error(string `Error while reading parameters in the ${name} routine, in the ${self.schema} database.`, cause = e);
+            return error sql:Error(string `Error while reading parameters in the ${name} routine, in the ${self.database} database.`, cause = e);
         }
 
         check paramResults.close();
@@ -332,7 +328,7 @@ isolated client class SchemaClient {
 }
 
 public function main() returns sql:Error?|error {                                                                         //DELETE ALL OF MAIN
-    SchemaClient client1 = check new (HOST, USER, PASSWORD, DATABASE, SCHEMA, PORT, (), ());
+    SchemaClient client1 = check new (HOST, USER, PASSWORD, DATABASE, PORT, (), ());
 
     string[]|error tableNames = client1->listTables();
     io:println("Table Names:\n");
